@@ -2,11 +2,10 @@ package httpheader_test
 
 import (
 	"fmt"
+	"github.com/dikac/go-httpheader"
 	"net/http"
 	"sort"
 	"time"
-
-	"github.com/mozillazg/go-httpheader"
 )
 
 func ExampleHeader() {
@@ -94,7 +93,7 @@ func ExampleDecode() {
 		"Created-At":   []string{"Sat, 01 Jan 2000 12:34:56 GMT"},
 	}
 	var opt Options
-	err := httpheader.Decode(h, &opt)
+	err := httpheader.Decode(h, &opt, "header", []string{http.TimeFormat})
 	fmt.Println(err)
 	fmt.Println(opt.ContentType)
 	fmt.Println(opt.Length)
@@ -169,7 +168,7 @@ func ExampleDecoder() {
 	}
 	h := http.Header{}
 	h.Set("Arg", "foobar")
-	err := httpheader.Decode(h, &s)
+	err := httpheader.Decode(h, &s, "header", []string{http.TimeFormat})
 	fmt.Println(err)
 	fmt.Println(s.Arg.arg)
 	// Output:

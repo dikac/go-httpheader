@@ -2,6 +2,7 @@ package httpheader
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/textproto"
 	"reflect"
@@ -71,7 +72,7 @@ func TestDecodeHeader(t *testing.T) {
 			plrun.ChannelExpiration, _ = time.Parse(http.TimeFormat, "Tue, 19 Nov 2013 01:13:52 GMT")
 			plrun.ResourceState = string(tt.args.e)
 			gcp := GoogleCalendarPayload{}
-			err := Decode(getHeader(tt.args.e), &gcp)
+			err := Decode(getHeader(tt.args.e), &gcp, "header", []string{http.TimeFormat})
 			if (err != nil) != tt.wantErr {
 				t.Errorf("%d. Decode() error = %+v, wantErr %+v", i, err, tt.wantErr)
 			}
@@ -115,7 +116,7 @@ func TestDecodeHeader_Unmarshaler(t *testing.T) {
 	}
 	var got ArgStruct
 
-	err := Decode(input, &got)
+	err := Decode(input, &got, "header", []string{http.TimeFormat})
 	if err != nil {
 		t.Errorf("want no error, got error: %#v", err)
 	}
@@ -128,7 +129,7 @@ func TestDecodeHeader_UnmarshalerWithNilPointer(t *testing.T) {
 	s := struct {
 		Args *EncodedArgs `header:"Arg"`
 	}{}
-	err := Decode(http.Header{}, s)
+	err := Decode(http.Header{}, s, "header", []string{http.TimeFormat})
 	if err == nil {
 		t.Error("want error but got nil")
 	}
@@ -239,7 +240,7 @@ func TestDecodeHeader_more_data_type(t *testing.T) {
 		Foo:  simpleStruct{Foo: "bar"},
 	}
 	var got fullTypeStruct
-	err := Decode(h, &got)
+	err := Decode(h, &got, "header", []string{http.TimeFormat})
 	if err != nil {
 		t.Errorf("Decode returned error: %#v", err)
 	}
@@ -258,7 +259,7 @@ func TestDecodeHeader_point(t *testing.T) {
 		Point: stringPoint("foobar"),
 	}
 	var got A
-	err := Decode(h, &got)
+	err := Decode(h, &got, "header", []string{http.TimeFormat})
 	if err != nil {
 		t.Errorf("Decode returned error: %#v", err)
 	}
@@ -272,10 +273,12 @@ func stringPoint(s string) *string {
 
 func Test_fillValues_errors(t *testing.T) {
 	type args struct {
-		sv     reflect.Value
-		opts   tagOptions
-		valArr []string
+		sv          reflect.Value
+		opts        tagOptions
+		valArr      []string
+		timeFormats []string
 	}
+
 	tests := []struct {
 		name    string
 		args    args
@@ -410,9 +413,10 @@ func Test_fillValues_errors(t *testing.T) {
 		{
 			name: "time",
 			args: args{
-				sv:     reflect.New(reflect.TypeOf(time.Time{})),
-				opts:   tagOptions{},
-				valArr: []string{"a"},
+				sv:          reflect.New(reflect.TypeOf(time.Time{})),
+				opts:        tagOptions{},
+				valArr:      []string{"a"},
+				timeFormats: []string{http.TimeFormat},
 			},
 			wantErr: true,
 		},
@@ -428,7 +432,7 @@ func Test_fillValues_errors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := fillValues(tt.args.sv, tt.args.opts, tt.args.valArr); (err != nil) != tt.wantErr {
+			if err := fillValues(tt.args.sv, tt.args.opts, tt.args.valArr, tt.args.timeFormats); (err != nil) != tt.wantErr {
 				t.Errorf("fillValues() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -440,7 +444,7 @@ func TestDecode_check_header_key_not_present_no_point(t *testing.T) {
 	h.Set("Length", "100")
 
 	var got fullTypeStruct
-	err := Decode(h, &got)
+	err := Decode(h, &got, "header", []string{http.TimeFormat})
 	if err != nil {
 		t.Errorf("Decode returned error: %#v", err)
 	}
@@ -465,7 +469,7 @@ func TestDecode_check_header_key_not_present_point(t *testing.T) {
 	h.Set("Length", "100")
 
 	var got testStruct
-	err := Decode(h, &got)
+	err := Decode(h, &got, "header", []string{http.TimeFormat})
 	if err != nil {
 		t.Errorf("Decode returned error: %#v", err)
 	}
@@ -484,7 +488,7 @@ func TestDecode_error(t *testing.T) {
 		"Int": []string{"abc"},
 	}
 	var got fullTypeStruct
-	err := Decode(h, &got)
+	err := Decode(h, &got, "header", []string{http.TimeFormat})
 	if err == nil {
 		t.Errorf("expect error, got : %#v", got)
 	}
@@ -500,7 +504,7 @@ func TestDecodeHeader_embeddedStructs(t *testing.T) {
 			http.Header{"C": []string{"foo"}},
 			func(h http.Header) (interface{}, error) {
 				var a A
-				err := Decode(h, &a)
+				err := Decode(h, &a, "header", []string{http.TimeFormat})
 				return a, err
 			},
 			A{B{C: "foo"}},
@@ -509,7 +513,7 @@ func TestDecodeHeader_embeddedStructs(t *testing.T) {
 			http.Header{"C": []string{"foo"}},
 			func(h http.Header) (interface{}, error) {
 				var d D
-				err := Decode(h, &d)
+				err := Decode(h, &d, "header", []string{http.TimeFormat})
 				return d, err
 			},
 			D{B: B{C: ""}, C: "foo"},
@@ -518,7 +522,7 @@ func TestDecodeHeader_embeddedStructs(t *testing.T) {
 			http.Header{"C": []string{"foo", "bar"}},
 			func(h http.Header) (interface{}, error) {
 				var d D
-				err := Decode(h, &d)
+				err := Decode(h, &d, "header", []string{http.TimeFormat})
 				return d, err
 			},
 			D{B: B{C: "bar"}, C: "foo"},
@@ -527,7 +531,7 @@ func TestDecodeHeader_embeddedStructs(t *testing.T) {
 			http.Header{"C": []string{"foo", "bar"}},
 			func(h http.Header) (interface{}, error) {
 				var f F
-				err := Decode(h, &f)
+				err := Decode(h, &f, "header", []string{http.TimeFormat})
 				return f, err
 			},
 			F{e{B: B{C: "bar"}, C: "foo"}}, // With unexported embed
@@ -536,7 +540,7 @@ func TestDecodeHeader_embeddedStructs(t *testing.T) {
 			http.Header{"C": []string{"bar"}},
 			func(h http.Header) (interface{}, error) {
 				var f F
-				err := Decode(h, &f)
+				err := Decode(h, &f, "header", []string{http.TimeFormat})
 				return f, err
 			},
 			F{e{C: "bar"}}, // With unexported embed
@@ -552,5 +556,124 @@ func TestDecodeHeader_embeddedStructs(t *testing.T) {
 		if !reflect.DeepEqual(tt.want, v) {
 			t.Errorf("%d. Header(%+v) returned/want:\n%#+v\n%#+v", i, tt.in, v, tt.want)
 		}
+	}
+}
+
+func TestDecodeHeader_time_format(t *testing.T) {
+
+	timeV := time.Date(2000, 1, 1, 12, 34, 56, 0, time.UTC)
+
+	type args struct {
+		opts        tagOptions
+		timeFormats []string
+		header      http.Header
+	}
+
+	tests := []struct {
+		name   string
+		args   args
+		expect *fullTypeStruct
+		error  error
+	}{
+		{
+			name: "single",
+			args: args{
+				header: http.Header{
+					"Time": []string{
+						timeV.Format(http.TimeFormat),
+					},
+				},
+				timeFormats: []string{
+					http.TimeFormat,
+				},
+			},
+			expect: &fullTypeStruct{
+				Time: timeV,
+			},
+		},
+		{
+			name: "multiple match 1",
+			args: args{
+				header: http.Header{
+					"Time": []string{
+						timeV.Format(time.RFC3339),
+					},
+				},
+				timeFormats: []string{
+					http.TimeFormat,
+					time.RFC3339,
+				},
+			},
+			expect: &fullTypeStruct{
+				Time: timeV,
+			},
+		},
+		{
+			name: "multiple match 2",
+			args: args{
+				header: http.Header{
+					"Time": []string{
+						timeV.Format(http.TimeFormat),
+					},
+				},
+				timeFormats: []string{
+					http.TimeFormat,
+					time.RFC3339,
+				},
+			},
+			expect: &fullTypeStruct{
+				Time: timeV,
+			},
+		},
+		{
+			name: "single not match",
+			args: args{
+				header: http.Header{
+					"Time": []string{
+						timeV.Format(time.RFC3339),
+					},
+				},
+				timeFormats: []string{
+					http.TimeFormat,
+				},
+			},
+			expect: &fullTypeStruct{
+				Time: timeV,
+			},
+			error: &time.ParseError{},
+		},
+		{
+			name: "multi not match",
+			args: args{
+				header: http.Header{
+					"Time": []string{
+						timeV.Format(time.RFC850),
+					},
+				},
+				timeFormats: []string{
+					http.TimeFormat,
+					time.RFC3339,
+				},
+			},
+			expect: &fullTypeStruct{
+				Time: timeV,
+			},
+			error: &time.ParseError{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			expect := &fullTypeStruct{}
+
+			err := Decode(tt.args.header, expect, "header", tt.args.timeFormats)
+
+			if tt.error != nil {
+				assert.IsType(t, tt.error, err)
+			} else {
+				assert.Equal(t, tt.expect, expect)
+			}
+		})
 	}
 }

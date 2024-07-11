@@ -18,7 +18,7 @@ type Decoder interface {
 
 // Decode expects to be passed an http.Header and a struct, and parses
 // header into the struct recursively using the same rules as Header (see above)
-func Decode(header http.Header, v interface{}) error {
+func Decode(header http.Header, v interface{}, tagName string, timeFormats []string) error {
 	val := reflect.ValueOf(v)
 	if val.Kind() != reflect.Ptr || val.IsNil() {
 		return errors.New("v should be a pointer and should not be nil")
@@ -31,13 +31,13 @@ func Decode(header http.Header, v interface{}) error {
 	if val.Kind() != reflect.Struct {
 		return fmt.Errorf("v is not a struct %+v", val.Kind())
 	}
-	return parseValue(header, val)
+	return parseValue(header, val, tagName, timeFormats)
 }
 
 // parseValue populates the struct fields in val from the header fields.
 // Embedded structs are followed recursively (using the rules defined in the
 // Values function documentation) breadth-first.
-func parseValue(header http.Header, val reflect.Value) error {
+func parseValue(header http.Header, val reflect.Value, tagName string, timeFormats []string) error {
 	var embedded []reflect.Value
 
 	typ := val.Type()
@@ -86,7 +86,7 @@ func parseValue(header http.Header, val reflect.Value) error {
 				continue
 			}
 			ve := reflect.New(sv.Type().Elem())
-			if err := fillValues(ve, opts, valArr); err != nil {
+			if err := fillValues(ve, opts, valArr, timeFormats); err != nil {
 				return err
 			}
 			sv.Set(ve)
@@ -98,14 +98,14 @@ func parseValue(header http.Header, val reflect.Value) error {
 			if !exist {
 				continue
 			}
-			if err := fillValues(sv, opts, valArr); err != nil {
+			if err := fillValues(sv, opts, valArr, timeFormats); err != nil {
 				return err
 			}
 			continue
 		}
 
 		if sv.Kind() == reflect.Struct {
-			if err := parseValue(header, sv); err != nil {
+			if err := parseValue(header, sv, tagName, timeFormats); err != nil {
 				return err
 			}
 			continue
@@ -119,7 +119,7 @@ func parseValue(header http.Header, val reflect.Value) error {
 			v := vals[0]
 			vals = vals[1:]
 
-			if err := fillValues(sv, opts, []string{v}); err != nil {
+			if err := fillValues(sv, opts, []string{v}, timeFormats); err != nil {
 				return err
 			}
 
@@ -134,20 +134,20 @@ func parseValue(header http.Header, val reflect.Value) error {
 		if !exist {
 			continue
 		}
-		if err := fillValues(sv, opts, valArr); err != nil {
+		if err := fillValues(sv, opts, valArr, timeFormats); err != nil {
 			return err
 		}
 	}
 
 	for _, f := range embedded {
-		if err := parseValue(header, f); err != nil {
+		if err := parseValue(header, f, tagName, timeFormats); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func fillValues(sv reflect.Value, opts tagOptions, valArr []string) error {
+func fillValues(sv reflect.Value, opts tagOptions, valArr []string, timeFormats []string) error {
 	var err error
 	var value string
 	if len(valArr) > 0 {
@@ -244,7 +244,7 @@ func fillValues(sv reflect.Value, opts tagOptions, valArr []string) error {
 		v := reflect.MakeSlice(sv.Type(), len(valArr), len(valArr))
 		for i, s := range valArr {
 			eleV := reflect.New(sv.Type().Elem()).Elem()
-			if err := fillValues(eleV, opts, []string{s}); err != nil {
+			if err := fillValues(eleV, opts, []string{s}, timeFormats); err != nil {
 				return err
 			}
 			v.Index(i).Set(eleV)
@@ -259,7 +259,7 @@ func fillValues(sv reflect.Value, opts tagOptions, valArr []string) error {
 		}
 		for i := 0; i < length; i++ {
 			eleV := reflect.New(sv.Type().Elem()).Elem()
-			if err := fillValues(eleV, opts, []string{valArr[i]}); err != nil {
+			if err := fillValues(eleV, opts, []string{valArr[i]}, timeFormats); err != nil {
 				return err
 			}
 			v.Index(i).Set(eleV)
@@ -281,7 +281,12 @@ func fillValues(sv reflect.Value, opts tagOptions, valArr []string) error {
 			}
 			v = time.Unix(u, 0).UTC()
 		} else {
-			v, err = time.Parse(http.TimeFormat, value)
+			for _, timeFormat := range timeFormats {
+				v, err = time.Parse(timeFormat, value)
+				if err == nil {
+					break
+				}
+			}
 			if err != nil {
 				return err
 			}
