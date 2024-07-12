@@ -516,7 +516,7 @@ func TestDecodeHeader_embeddedStructs(t *testing.T) {
 				err := Decode(h, &d, "header", []string{http.TimeFormat})
 				return d, err
 			},
-			D{B: B{C: ""}, C: "foo"},
+			D{B: B{C: "foo"}, C: "foo"},
 		},
 		{
 			http.Header{"C": []string{"foo", "bar"}},
@@ -525,7 +525,7 @@ func TestDecodeHeader_embeddedStructs(t *testing.T) {
 				err := Decode(h, &d, "header", []string{http.TimeFormat})
 				return d, err
 			},
-			D{B: B{C: "bar"}, C: "foo"},
+			D{B: B{C: "foo"}, C: "foo"},
 		},
 		{
 			http.Header{"C": []string{"foo", "bar"}},
@@ -534,7 +534,7 @@ func TestDecodeHeader_embeddedStructs(t *testing.T) {
 				err := Decode(h, &f, "header", []string{http.TimeFormat})
 				return f, err
 			},
-			F{e{B: B{C: "bar"}, C: "foo"}}, // With unexported embed
+			F{e{B: B{C: "foo"}, C: "foo"}}, // With unexported embed
 		},
 		{
 			http.Header{"C": []string{"bar"}},
@@ -543,7 +543,7 @@ func TestDecodeHeader_embeddedStructs(t *testing.T) {
 				err := Decode(h, &f, "header", []string{http.TimeFormat})
 				return f, err
 			},
-			F{e{C: "bar"}}, // With unexported embed
+			F{e{B: B{C: "bar"}, C: "bar"}}, // With unexported embed
 		},
 	}
 

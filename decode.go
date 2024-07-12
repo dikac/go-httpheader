@@ -123,10 +123,6 @@ func parseValue(header http.Header, val reflect.Value, tagName string, timeForma
 				return err
 			}
 
-			header.Del(name)
-			for _, v := range vals {
-				header.Add(name, v)
-			}
 			continue
 		}
 
